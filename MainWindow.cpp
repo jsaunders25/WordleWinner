@@ -10,6 +10,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     setWindowTitle("Wordle Winner");
+    populateScoreMap();
 
     wordle_winner = new WordleWinner();
     model = new QStringListModel();
@@ -24,6 +25,56 @@ MainWindow::~MainWindow()
     delete ui;
     delete wordle_winner;
     delete model;
+}
+
+/**
+ * @brief MainWindow::calculateScrabbleScore
+ * Calculate Scrabble score of <word>. Return the score.
+ * @param word
+ * @return
+ */
+int MainWindow::calculateScrabbleScore(QString word)
+{
+    int score = 0;
+    foreach(QChar letter, word)
+    {
+        score += scrabble_scores.value(letter);
+    }
+    return score;
+}
+
+/**
+ * @brief MainWindow::populateScoreMap
+ * Populate map matching letters to their Scrabble scores
+ */
+void MainWindow::populateScoreMap()
+{
+    scrabble_scores.insert('A', 1);
+    scrabble_scores.insert('B', 3);
+    scrabble_scores.insert('C', 3);
+    scrabble_scores.insert('D', 2);
+    scrabble_scores.insert('E', 1);
+    scrabble_scores.insert('F', 4);
+    scrabble_scores.insert('G', 2);
+    scrabble_scores.insert('H', 4);
+    scrabble_scores.insert('I', 1);
+    scrabble_scores.insert('J', 8);
+    scrabble_scores.insert('K', 5);
+    scrabble_scores.insert('L', 1);
+    scrabble_scores.insert('M', 3);
+    scrabble_scores.insert('N', 1);
+    scrabble_scores.insert('O', 1);
+    scrabble_scores.insert('P', 3);
+    scrabble_scores.insert('Q', 10);
+    scrabble_scores.insert('R', 1);
+    scrabble_scores.insert('S', 1);
+    scrabble_scores.insert('T', 1);
+    scrabble_scores.insert('U', 1);
+    scrabble_scores.insert('V', 4);
+    scrabble_scores.insert('W', 4);
+    scrabble_scores.insert('X', 8);
+    scrabble_scores.insert('Y', 4);
+    scrabble_scores.insert('Z', 10);
 }
 
 /**
@@ -56,9 +107,16 @@ void MainWindow::receiveGuess(QString word, int hints[5])
 void MainWindow::receiveRemainingWords(QSet<QString> words)
 {
     QStringList list;
+    int lowscore = 30;
     foreach(QString word, words)
     {
         list << word;
+        int score = calculateScrabbleScore(word);
+        if(score < lowscore)
+        {
+            lowscore = score;
+            ui->lineEdit_common->setText(word);
+        }
     }
     std::sort(list.begin(), list.end());
     model->setStringList(list);
@@ -71,9 +129,11 @@ void MainWindow::receiveRemainingWords(QSet<QString> words)
 void MainWindow::on_pushButton_reset_clicked()
 {
     ui->textBrowser_guesses->clear();
+    ui->lineEdit_common->clear();
     wordle_winner->reset();
     ui->wordle_widget->reset();
     model->setStringList(QStringList());
+    ignored_words.clear();
 }
 
 /**
@@ -86,5 +146,28 @@ void MainWindow::on_listView_remaining_pressed(const QModelIndex &index)
 {
     QString word = model->data(index).toString();
     ui->wordle_widget->useWord(word);
+}
+
+/**
+ * @brief MainWindow::on_pushButton_another_clicked
+ * When "Another" button is clicked, add current word
+ * to list of ignored words and find next lowest scored word
+ */
+void MainWindow::on_pushButton_another_clicked()
+{
+    ignored_words << ui->lineEdit_common->text();
+    int lowscore = 30;
+    foreach(QString word, model->stringList())
+    {
+        if(!ignored_words.contains(word))
+        {
+            int score = calculateScrabbleScore(word);
+            if(score < lowscore)
+            {
+                lowscore = score;
+                ui->lineEdit_common->setText(word);
+            }
+        }
+    }
 }
 
