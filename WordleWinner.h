@@ -18,25 +18,26 @@ public:
 
     struct WordleWord {
         QString word;
-        Hints hints[5];
+        QList<QList<int>> hints;
     };
 
     bool isAWord(QString word);
     void addGuess(WordleWord word);
-    QString getRemainingWords();
-
+    QStringList getRemainingWords();
+    void configure(int length, int count);
     void reset();
 
 signals:
-    void sendRemainingWords(QSet<QString>);
+    void sendRemainingWords(QList<QSet<QString>>);
 
 private:
-    void wordHas(char letter, int index);
-    void wordContains(char letter, int index, WordleWord *w_word);
-    void wordDoesNotHave(char letter, int index, WordleWord *w_word);
+    void wordHas(int w, char letter, int index);
+    void wordContains(int w, char letter, int index, WordleWord *w_word);
+    void wordDoesNotHave(int w, char letter, int index, WordleWord *w_word);
 
-    void getAllWords();
-    QSet<QString> dictionary_, remaining_;
+    void getAllWords(int length);
+    QSet<QString> dictionary_;
+    QList<QSet<QString>> remaining_;
     QStringList guesses_;
 };
 

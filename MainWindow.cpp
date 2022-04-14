@@ -1,8 +1,10 @@
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "WordleWinner.h"
+#include "ConfigureDialog.h"
+#include "SuggestionWidget.h"
 #include <algorithm>
-#include <QStringListModel>
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -13,18 +15,24 @@ MainWindow::MainWindow(QWidget *parent)
     populateScoreMap();
 
     wordle_winner = new WordleWinner();
-    model = new QStringListModel();
-    ui->listView_remaining->setModel(model);
 
-    connect(ui->wordle_widget, &WordleWidget::submitWord, this, &MainWindow::receiveGuess);
-    connect(wordle_winner, &WordleWinner::sendRemainingWords, this, &MainWindow::receiveRemainingWords);
+    // Menu Actions
+    connect(ui->actionAbout,    &QAction::triggered, this, &MainWindow::openAboutWindow);
+    connect(ui->actionConfigure,&QAction::triggered, this, &MainWindow::openConfigureDialog);
+    connect(ui->actionExit,     &QAction::triggered, this, &MainWindow::quitApplication);
+
+    connect(ui->wordle_widget,  &WordleWidget::submitWord, this, &MainWindow::receiveGuess);
+    connect(wordle_winner,      &WordleWinner::sendRemainingWords, this, &MainWindow::receiveRemainingWords);
+
+    // Default Configuration
+    configure(5, 1, true, false);
 }
 
 MainWindow::~MainWindow()
 {
+    qDeleteAll(suggestion_widgets);
     delete ui;
     delete wordle_winner;
-    delete model;
 }
 
 /**
@@ -77,23 +85,48 @@ void MainWindow::populateScoreMap()
     scrabble_scores.insert('Z', 10);
 }
 
+void MainWindow::resetApp()
+{
+    qDeleteAll(suggestion_widgets);
+    suggestion_widgets.clear();
+}
+
+/**
+ * @brief MainWindow::configure
+ * Configure the application to the given parameters.
+ * @param length word length
+ * @param count word count
+ * @param suggest whether to give suggestions
+ * @param survivle whether to give Survivle suggestions
+ */
+void MainWindow::configure(int length, int count, bool suggest, bool survivle)
+{
+    resetApp();
+
+    ui->wordle_widget->configure(length, count);
+    wordle_winner->configure(length, count);
+    for(int i = 0; i < count; ++i)
+    {
+        SuggestionWidget *widget = new SuggestionWidget(suggest, survivle, this);
+        connect(widget, &SuggestionWidget::wordClickedSignal, ui->wordle_widget, &WordleWidget::useWord);
+        ui->gridLayout_suggestions->addWidget(widget, i / 2, i % 2);
+        suggestion_widgets.append(widget);
+    }
+}
+
 /**
  * @brief MainWindow::receiveGuess
  * Receive guess from the Wordle Widget. Construct a WordleWord struct
- * using <word> and <hints> and send to WordleWinner.
+ * using <word> and <all_hints> and send to WordleWinner.
  * Append <word> to textBrowser_guesses.
  * @param word
- * @param hints
+ * @param all_hints
  */
-void MainWindow::receiveGuess(QString word, int hints[5])
+void MainWindow::receiveGuess(QString word, QList<QList<int>> all_hints)
 {
     WordleWinner::WordleWord w_word;
     w_word.word = word;
-    w_word.hints[0] = static_cast<WordleWinner::Hints>(hints[0]);
-    w_word.hints[1] = static_cast<WordleWinner::Hints>(hints[1]);
-    w_word.hints[2] = static_cast<WordleWinner::Hints>(hints[2]);
-    w_word.hints[3] = static_cast<WordleWinner::Hints>(hints[3]);
-    w_word.hints[4] = static_cast<WordleWinner::Hints>(hints[4]);
+    w_word.hints = all_hints;
     wordle_winner->addGuess(w_word);
     ui->textBrowser_guesses->append(word);
 }
@@ -104,22 +137,30 @@ void MainWindow::receiveGuess(QString word, int hints[5])
  * Construct an alphebatized QStringList to display.
  * @param words
  */
-void MainWindow::receiveRemainingWords(QSet<QString> words)
+void MainWindow::receiveRemainingWords(QList<QSet<QString>> words)
 {
     QStringList list;
-    int lowscore = 30;
-    foreach(QString word, words)
+    QString lowscore_word;
+    int lowscore;
+
+    for(int i = 0; i < words.size(); ++i)
     {
-        list << word;
-        int score = calculateScrabbleScore(word);
-        if(score < lowscore)
+        lowscore = 30;
+        list.clear();
+        lowscore_word.clear();
+        foreach(QString word, words[i])
         {
-            lowscore = score;
-            ui->lineEdit_common->setText(word);
+            list << word;
+            int score = calculateScrabbleScore(word);
+            if(score < lowscore)
+            {
+                lowscore = score;
+                lowscore_word = word;
+            }
         }
+        std::sort(list.begin(), list.end());
+        suggestion_widgets[i]->setRemainingWords(list, lowscore_word);
     }
-    std::sort(list.begin(), list.end());
-    model->setStringList(list);
 }
 
 /**
@@ -129,45 +170,32 @@ void MainWindow::receiveRemainingWords(QSet<QString> words)
 void MainWindow::on_pushButton_reset_clicked()
 {
     ui->textBrowser_guesses->clear();
-    ui->lineEdit_common->clear();
     wordle_winner->reset();
     ui->wordle_widget->reset();
-    model->setStringList(QStringList());
     ignored_words.clear();
-}
-
-/**
- * @brief MainWindow::on_listView_remaining_pressed
- * When item in list is clicked, populate WordleWidget
- * with that item.
- * @param index
- */
-void MainWindow::on_listView_remaining_pressed(const QModelIndex &index)
-{
-    QString word = model->data(index).toString();
-    ui->wordle_widget->useWord(word);
-}
-
-/**
- * @brief MainWindow::on_pushButton_another_clicked
- * When "Another" button is clicked, add current word
- * to list of ignored words and find next lowest scored word
- */
-void MainWindow::on_pushButton_another_clicked()
-{
-    ignored_words << ui->lineEdit_common->text();
-    int lowscore = 30;
-    foreach(QString word, model->stringList())
+    foreach(SuggestionWidget* widget, suggestion_widgets)
     {
-        if(!ignored_words.contains(word))
-        {
-            int score = calculateScrabbleScore(word);
-            if(score < lowscore)
-            {
-                lowscore = score;
-                ui->lineEdit_common->setText(word);
-            }
-        }
+        widget->reset();
     }
+}
+
+void MainWindow::openAboutWindow()
+{
+    QMessageBox::about(this,
+                       "WordleWinner",
+                       "Your greatest ally when playing games like Wordle, Wordle2, and Quordle.");
+}
+
+void MainWindow::openConfigureDialog()
+{
+    ConfigureDialog *dialog = new ConfigureDialog(this);
+    connect(dialog, &ConfigureDialog::configurationSignal, this, &MainWindow::configure);
+    dialog->exec();
+    delete dialog;
+}
+
+void MainWindow::quitApplication()
+{
+    QApplication::quit();
 }
 

@@ -7,6 +7,8 @@ namespace Ui {
 class WorldeWidget;
 }
 class QComboBox;
+class WordleEdit;
+class QHBoxLayout;
 
 class WordleWidget : public QWidget
 {
@@ -15,29 +17,26 @@ class WordleWidget : public QWidget
 public:
     explicit WordleWidget(QWidget *parent = nullptr);
     ~WordleWidget();
+    void deleteAll();
     void reset();
+    void configure(int length, int count);
     void useWord(QString word);
 
 signals:
-    void submitWord(QString, int[5]);
+    void submitWord(QString, QList<QList<int>>);
 
 private slots:
-    void on_lineEdit_1_textEdited(const QString &arg1);
-    void on_lineEdit_2_textEdited(const QString &arg1);
-    void on_lineEdit_3_textEdited(const QString &arg1);
-    void on_lineEdit_4_textEdited(const QString &arg1);
-    void on_lineEdit_5_textEdited(const QString &arg1);
-
     void on_pushButton_submit_clicked();
 
 
 private:
     Ui::WorldeWidget *ui;
-    bool validateLineEdits(QString str);
-    void populateComboBoxes();
-    void populateComboBox(QComboBox *cb);
+    void connectLineEdits();
 
-    const QStringList hints = QStringList({"Green", "Yellow", "Grey"});
+    const QStringList hint_list = QStringList({"Green", "Yellow", "Grey"});
+    QList<WordleEdit*> line_edits;   // line edits for entering letters
+    QList<QComboBox*> combo_boxes;  // combo boxes for hints
+    QList<QHBoxLayout*> cb_layouts; // horizontal layouts that hold combo boxes
 };
 
 #endif // WORDLEWIDGET_H

@@ -9,18 +9,26 @@ CONFIG += c++11
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    ConfigureDialog.cpp \
+    SuggestionWidget.cpp \
+    WordleEdit.cpp \
     WordleWidget.cpp \
     WordleWinner.cpp \
     main.cpp \
     MainWindow.cpp
 
 HEADERS += \
+    ConfigureDialog.h \
     MainWindow.h \
+    SuggestionWidget.h \
+    WordleEdit.h \
     WordleWidget.h \
     WordleWinner.h
 
 FORMS += \
+    ConfigureDialog.ui \
     MainWindow.ui \
+    SuggestionWidget.ui \
     WordleWidget.ui
 
 # Default rules for deployment.

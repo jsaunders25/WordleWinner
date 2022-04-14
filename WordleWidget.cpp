@@ -1,5 +1,6 @@
 #include "WordleWidget.h"
 #include "ui_WordleWidget.h"
+#include "WordleEdit.h"
 #include <QComboBox>
 #include <QRegularExpressionValidator>
 
@@ -8,25 +9,78 @@ WordleWidget::WordleWidget(QWidget *parent) :
     ui(new Ui::WorldeWidget)
 {
     ui->setupUi(this);
-    populateComboBoxes();
 }
 
 WordleWidget::~WordleWidget()
 {
+    deleteAll();
     delete ui;
 }
 
 /**
+ * @brief WordleWidget::deleteAll
+ * Delete all items in containers
+ * and clear lists
+ */
+void WordleWidget::deleteAll()
+{
+    qDeleteAll(line_edits);
+    qDeleteAll(combo_boxes);
+    qDeleteAll(cb_layouts);
+    combo_boxes.clear();
+    line_edits.clear();
+    cb_layouts.clear();
+}
+
+/**
  * @brief WordleWidget::reset
- * Clear text
+ * Clear all fields
  */
 void WordleWidget::reset()
 {
-    ui->lineEdit_1->clear();
-    ui->lineEdit_2->clear();
-    ui->lineEdit_3->clear();
-    ui->lineEdit_4->clear();
-    ui->lineEdit_5->clear();
+    foreach(auto cb, combo_boxes)
+    {
+        cb->setCurrentIndex(0);
+    }
+    foreach(auto le, line_edits)
+    {
+        le->clear();
+    }
+}
+
+/**
+ * @brief WordleWidget::configure
+ * Configure widget for use with given parameters.
+ * @param length word length
+ * @param count word count
+ */
+void WordleWidget::configure(int length, int count)
+{
+    deleteAll();
+    // Create Line Edits for each letter
+    for(int i = 0; i < length; ++i)
+    {
+        WordleEdit *wordleEdit = new WordleEdit;
+        line_edits.append(wordleEdit);
+        ui->horizontalLayout_letters->addWidget(wordleEdit);
+    }
+
+    connectLineEdits();
+
+    // Create Combo Boxes for each letter and each word
+    for(int i = 0; i < count; ++i)
+    {
+        QHBoxLayout *layout = new QHBoxLayout;
+        cb_layouts.append(layout);
+        ui->verticalLayout_comboBoxes->addLayout(layout);
+        for(int j = 0; j < length; ++j)
+        {
+            QComboBox *cb = new QComboBox;
+            cb->addItems(hint_list);
+            layout->addWidget(cb);
+            combo_boxes.append(cb);
+        }
+    }
 }
 
 /**
@@ -36,152 +90,57 @@ void WordleWidget::reset()
  */
 void WordleWidget::useWord(QString word)
 {
-    if(word.length() == 5)
+    if(word.length() == line_edits.size())
     {
-        ui->lineEdit_1->setText(word.at(0));
-        ui->lineEdit_2->setText(word.at(1));
-        ui->lineEdit_3->setText(word.at(2));
-        ui->lineEdit_4->setText(word.at(3));
-        ui->lineEdit_5->setText(word.at(4));
-    }
-}
-
-/**
- * @brief WordleWidget::populateComboBoxes
- * Execute populateComboBox on all comboBoxes
- */
-void WordleWidget::populateComboBoxes()
-{
-    populateComboBox(ui->comboBox_1);
-    populateComboBox(ui->comboBox_2);
-    populateComboBox(ui->comboBox_3);
-    populateComboBox(ui->comboBox_4);
-    populateComboBox(ui->comboBox_5);
-}
-
-/**
- * @brief WordleWidget::populateComboBox
- * Populate <cb> with all hints
- * @param cb
- */
-void WordleWidget::populateComboBox(QComboBox *cb)
-{
-    cb->addItems(hints);
-}
-
-/*
- * When a lineEdit is edited, capitalize the letter and advance focus
- * to the next lineEdit.
- */
-
-void WordleWidget::on_lineEdit_1_textEdited(const QString &arg1)
-{
-    if(!validateLineEdits(arg1))
-    {
-        ui->lineEdit_1->clear();
-    }
-    else if(!arg1.isEmpty())
-    {
-        ui->lineEdit_1->setText(arg1.toUpper());
-        ui->lineEdit_2->setFocus();
-        ui->lineEdit_2->selectAll();
-    }
-}
-
-void WordleWidget::on_lineEdit_2_textEdited(const QString &arg1)
-{
-    if(!validateLineEdits(arg1))
-    {
-        ui->lineEdit_2->clear();
-    }
-    else if(!arg1.isEmpty())
-    {
-        ui->lineEdit_2->setText(arg1.toUpper());
-        ui->lineEdit_3->setFocus();
-        ui->lineEdit_3->selectAll();
-    }
-}
-
-void WordleWidget::on_lineEdit_3_textEdited(const QString &arg1)
-{
-    if(!validateLineEdits(arg1))
-    {
-        ui->lineEdit_3->clear();
-    }
-    else if(!arg1.isEmpty())
-    {
-        ui->lineEdit_3->setText(arg1.toUpper());
-        ui->lineEdit_4->setFocus();
-        ui->lineEdit_4->selectAll();
-    }
-}
-
-void WordleWidget::on_lineEdit_4_textEdited(const QString &arg1)
-{
-    if(!validateLineEdits(arg1))
-    {
-        ui->lineEdit_4->clear();
-    }
-    else if(!arg1.isEmpty())
-    {
-        ui->lineEdit_4->setText(arg1.toUpper());
-        ui->lineEdit_5->setFocus();
-        ui->lineEdit_5->selectAll();
-    }
-}
-
-void WordleWidget::on_lineEdit_5_textEdited(const QString &arg1)
-{
-    if(!validateLineEdits(arg1))
-    {
-        ui->lineEdit_5->clear();
-    }
-    else
-    {
-        ui->lineEdit_5->setText(arg1.toUpper());
+        for(int i = 0; i < line_edits.size(); ++i)
+        {
+            line_edits[i]->setText(word.at(i));
+        }
     }
 }
 
 /**
  * @brief WordleWidget::on_pushButton_submit_clicked
  * Send out word as a QString and all hints in
- * an int[5] via submitWord signal. Clear any letters
- * from line edits that aren't GREEN. Give focus to
+ * a 2D list via submitWord signal. Give focus to
  * lineEdit_1.
  */
 void WordleWidget::on_pushButton_submit_clicked()
 {
-    QString word = ui->lineEdit_1->text() + ui->lineEdit_2->text() + ui->lineEdit_3->text() +
-            ui->lineEdit_4->text() + ui->lineEdit_5->text();
-    int hints[5];
-    hints [0] = ui->comboBox_1->currentIndex();
-    hints [1] = ui->comboBox_2->currentIndex();
-    hints [2] = ui->comboBox_3->currentIndex();
-    hints [3] = ui->comboBox_4->currentIndex();
-    hints [4] = ui->comboBox_5->currentIndex();
+    QString word;
 
-    emit submitWord(word, hints);
+    foreach(WordleEdit *we, line_edits)
+    {
+        word += we->text();
+    }
 
-    if(hints[0] != 0)
-        ui->lineEdit_1->clear();
-    if(hints[1] != 0)
-        ui->lineEdit_2->clear();
-    if(hints[2] != 0)
-        ui->lineEdit_3->clear();
-    if(hints[3] != 0)
-        ui->lineEdit_4->clear();
-    if(hints[4] != 0)
-        ui->lineEdit_5->clear();
+    QList<QList<int>> all_hints;
+    QList<int> hints;
+    for(int i = 1; i <= combo_boxes.size(); ++i)
+    {
+        hints << combo_boxes.at(i - 1)->currentIndex();
+        if(i % word.length() == 0)
+        {
+            all_hints << hints;
+            hints.clear();
+        }
+    }
 
-    ui->lineEdit_1->setFocus();
-    ui->lineEdit_1->selectAll();
+    emit submitWord(word, all_hints);
+
+    line_edits[0]->takeFocus();
 }
 
-bool WordleWidget::validateLineEdits(QString str)
+/**
+ * @brief WordleWidget::connectLineEdits
+ * Connect Wordle Edits so that typing in one sends focus to the next.
+ */
+void WordleWidget::connectLineEdits()
 {
-    bool ok;
-    str.toInt(&ok);
-    return !ok;
+    for(int i = 1; i < line_edits.size(); ++i)
+    {
+        connect(line_edits.at(i - 1), &WordleEdit::doneSignal, line_edits.at(i), &WordleEdit::takeFocus);
+    }
 }
 
 
